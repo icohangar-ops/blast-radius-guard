@@ -1,0 +1,1 @@
+{"description":"Pre-execution policy gate between an AI agent and its tools/APIs. Blocks or escalates irreversible, high-blast-radius calls before they run.","engines":{"node":">=20"},"license":"MIT","name":"blast-radius-guard","private":true,"scripts":{"demo":"node demo/demo.js","test":"node --test test/*.test.js"},"type":"module","version":"0.1.0"}

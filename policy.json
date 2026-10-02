@@ -1,0 +1,1 @@
+{"environmentAllowlist":["production","staging","development","unknown"],"productionAction":"require_confirmation","thresholds":{"productionIrreversibleProbability":0.5,"requireConfirmationBlastRadius":4,"requireConfirmationIrreversibleProbability":0.3},"toolOverrides":{},"version":1}
