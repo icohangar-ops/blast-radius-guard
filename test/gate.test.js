@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { BlastRadiusGate } from '../src/gate.js';
 import { HeuristicProvider } from '../src/heuristic-provider.js';
 import { JevProvider } from '../src/jev-client.js';
-import { loadPolicy } from '../src/policy.js';
+import { loadPolicy, decide } from '../src/policy.js';
 import { CredentialBroker } from '../src/broker.js';
 import { AuditLog } from '../src/audit-log.js';
 
@@ -145,4 +145,49 @@ test('gate falls back to heuristic when the Jev API fails', async () => {
   assert.equal(r.decision, 'allow');
   assert.equal(r.assessment.source, 'heuristic');
   assert.ok(r.reasons.some((x) => x.includes('heuristic fallback')));
+});
+
+// ---------- fail-closed completeness (Lean review fix) ----------
+
+const COMPLETE_SAFE = {
+  environment: { choice: 'staging', confidence: 0.9 },
+  irreversibleProbability: 0.01,
+  blastRadius: { score: 1, confidence: 0.9 },
+};
+
+test('decide: complete low-risk assessment still allows', () => {
+  const r = decide(COMPLETE_SAFE, { tool: 'railway.volumeList' }, policy);
+  assert.equal(r.decision, 'allow');
+});
+
+test('decide: empty assessment requires confirmation, never allow', () => {
+  assert.equal(decide({}, { tool: 'railway.volumeList' }, policy).decision, 'require_confirmation');
+  assert.equal(decide(null, { tool: 'railway.volumeList' }, policy).decision, 'require_confirmation');
+});
+
+test('decide: missing environment or blast radius requires confirmation', () => {
+  const noEnv = { irreversibleProbability: 0.01, blastRadius: { score: 1 } };
+  assert.equal(decide(noEnv, { tool: 'x.y' }, policy).decision, 'require_confirmation');
+  const noBlast = { environment: { choice: 'staging' }, irreversibleProbability: 0.01 };
+  assert.equal(decide(noBlast, { tool: 'x.y' }, policy).decision, 'require_confirmation');
+});
+
+test('decide: NaN scores require confirmation (NaN comparisons used to fall through to allow)', () => {
+  const nanP = { ...COMPLETE_SAFE, irreversibleProbability: NaN };
+  assert.equal(decide(nanP, { tool: 'x.y' }, policy).decision, 'require_confirmation');
+  const nanB = { ...COMPLETE_SAFE, blastRadius: { score: NaN } };
+  assert.equal(decide(nanB, { tool: 'x.y' }, policy).decision, 'require_confirmation');
+});
+
+test('decide: per-tool override still wins over an incomplete assessment', () => {
+  const p = { ...policy, toolOverrides: { 'railway.volumeList': 'deny' } };
+  assert.equal(decide({}, { tool: 'railway.volumeList' }, p).decision, 'deny');
+});
+
+test('gate: provider returning a sparse assessment yields require_confirmation with a dry run', async () => {
+  const sparse = { name: 'sparse', assess: async () => ({ source: 'sparse' }) };
+  const gate = new BlastRadiusGate({ provider: sparse, policy, auditLog: new AuditLog(null) });
+  const r = await gate.evaluate({ tool: 'railway.volumeList' }, { agentId: 'a' });
+  assert.equal(r.decision, 'require_confirmation');
+  assert.ok(r.dryRun.includes('WOULD EXECUTE'));
 });

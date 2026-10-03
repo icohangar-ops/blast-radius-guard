@@ -16,13 +16,16 @@ import { AuditLog } from './audit-log.js';
 import { CredentialBroker } from './broker.js';
 
 export function dryRunSummary(toolCall, assessment) {
-  const env = assessment.environment;
-  const blast = assessment.blastRadius;
+  // Defensive access throughout: since the completeness fix in decide(),
+  // a require_confirmation decision can now be produced by a sparse
+  // assessment, and the summary must not throw on the fields it lacks.
+  const env = assessment?.environment ?? {};
+  const blast = assessment?.blastRadius ?? {};
   return [
     `WOULD EXECUTE: ${toolCall.tool}(${JSON.stringify(toolCall.args ?? {})})`,
-    `  target environment : ${env.choice} (confidence ${env.confidence.toFixed(2)})`,
-    `  P(irreversible)    : ${assessment.irreversibleProbability.toFixed(2)}`,
-    `  blast radius       : ${blast.score}/5 (confidence ${blast.confidence.toFixed(2)})`,
+    `  target environment : ${env.choice ?? 'unknown'} (confidence ${(env.confidence ?? 0).toFixed(2)})`,
+    `  P(irreversible)    : ${(assessment?.irreversibleProbability ?? 0).toFixed(2)}`,
+    `  blast radius       : ${blast.score ?? '?'}/5 (confidence ${(blast.confidence ?? 0).toFixed(2)})`,
     '  This call has NOT been executed. A human must confirm before it can run.',
   ].join('\n');
 }

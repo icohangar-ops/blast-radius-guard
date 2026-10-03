@@ -3,13 +3,17 @@
  *
  * Decision precedence (first match wins):
  *  1. Per-tool override (policy.toolOverrides[tool]) — exact tool name match.
- *  2. Production + P(irreversible) above threshold → policy.productionAction
+ *     Explicit operator configuration; wins even over the completeness check.
+ *  2. Incomplete assessment (missing environment, or irreversibility /
+ *     blast-radius missing or non-finite, e.g. NaN) → require_confirmation.
+ *     Fail closed: an assessment that says nothing must never be allowed.
+ *  3. Production + P(irreversible) above threshold → policy.productionAction
  *     ("require_confirmation" by default; set to "deny" for hard-deny
  *     deployments where this class of call has no autonomous path at all).
- *  3. Blast radius score >= threshold → require_confirmation.
- *  4. P(irreversible) > threshold → require_confirmation.
- *  5. Environment not on the allowlist → require_confirmation.
- *  6. Otherwise → allow.
+ *  4. Blast radius score >= threshold → require_confirmation.
+ *  5. P(irreversible) > threshold → require_confirmation.
+ *  6. Environment not on the allowlist → require_confirmation.
+ *  7. Otherwise → allow.
  */
 import { readFileSync } from 'node:fs';
 
@@ -37,15 +41,26 @@ export function loadPolicy(policyPath) {
 
 export function decide(assessment, toolCall, policy = DEFAULT_POLICY) {
   const reasons = [];
-  const env = assessment.environment?.choice ?? 'unknown';
-  const pIrr = assessment.irreversibleProbability ?? 0;
-  const blast = assessment.blastRadius?.score ?? 0;
   const t = policy.thresholds;
 
   const override = policy.toolOverrides?.[toolCall.tool];
   if (override) {
     reasons.push(`per-tool override for "${toolCall.tool}" → ${override}`);
     return { decision: override, reasons };
+  }
+
+  // Completeness — fail closed. A missing environment used to coerce to
+  // "unknown" (which sits on the default allowlist) and missing scores to
+  // 0, so an empty assessment was *allowed*; NaN scores made every
+  // comparison below false and also fell through to allow.
+  const env = assessment?.environment?.choice;
+  const pIrr = assessment?.irreversibleProbability;
+  const blast = assessment?.blastRadius?.score;
+  if (typeof env !== 'string' || !Number.isFinite(pIrr) || !Number.isFinite(blast)) {
+    reasons.push(
+      'incomplete assessment (environment, irreversibility, and blast radius are all required and must be finite numbers) → require_confirmation',
+    );
+    return { decision: 'require_confirmation', reasons };
   }
 
   if (env === 'production' && pIrr > t.productionIrreversibleProbability) {
