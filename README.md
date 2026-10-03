@@ -8,6 +8,16 @@ Nothing about that failure required a smarter model. It required a **checkpoint 
 
 Blast Radius Guard is that checkpoint: a pre-execution policy gate that sits between an AI agent and its tools/APIs, so an irreversible or high-blast-radius call can never run unreviewed.
 
+<!-- product-screenshots:start -->
+## Product screenshots
+
+Pre-execution policy-gate overview; none of the example tool actions were executed.
+
+![blast-radius-guard interface](docs/screenshots/product-overview.png)
+
+Captured locally and non-interactively from [source commit 22d7d9e70e5b](https://github.com/icohangar-ops/blast-radius-guard/tree/22d7d9e70e5ba693e2a69e56e4c8535a26a7b7b6); pre-execution policy-gate overview; none of the example tool actions were executed.
+<!-- product-screenshots:end -->
+
 ## What the gate does
 
 Every pending tool call is evaluated **before** it executes:
